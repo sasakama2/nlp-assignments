@@ -2,37 +2,37 @@ import os
 import glob
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from pathlib import Path
 
-# 修正箇所: スクリプトのある場所(src/npl-assignments)から見て
-# textフォルダは2階層上(root)のtextフォルダにある
-DATA_DIR = "../../text"
-OUTPUT_FILE = "livedoor_news.csv"
+# --- パス設定 ---
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parent.parent
+DATA_DIR = PROJECT_ROOT / "text"
+OUTPUT_DIR = BASE_DIR / "data"
 
+# データ読み込み関数
 def load_data():
     data = []
-    # 除外するファイル
     exclude = ["CHANGES.txt", "README.txt", "LICENSE.txt"]
     
-    # パスが存在するか確認
-    if not os.path.exists(DATA_DIR):
-        print(f"エラー: データフォルダが見つかりません: {os.path.abspath(DATA_DIR)}")
-        print("ディレクトリ構造を確認してください。")
+    if not DATA_DIR.exists():
+        print(f"エラー: データフォルダが見つかりません: {DATA_DIR}")
         return pd.DataFrame(), []
 
-    categories = [d for d in os.listdir(DATA_DIR) if os.path.isdir(os.path.join(DATA_DIR, d))]
+    categories = [d.name for d in DATA_DIR.iterdir() if d.is_dir()]
     print(f"Categories found: {categories}")
     
     for cat in categories:
-        files = glob.glob(os.path.join(DATA_DIR, cat, "*.txt"))
+        cat_dir = DATA_DIR / cat
+        files = list(cat_dir.glob("*.txt"))
+        
         for f_path in files:
-            if os.path.basename(f_path) in exclude: continue
+            if f_path.name in exclude: continue
             
             with open(f_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
-                # 3行目がタイトル、4行目以降が本文
                 if len(lines) > 3:
                     text = lines[2].strip() + " " + "".join(lines[3:]).strip()
-                    # 空白や改行を簡易除去
                     text = text.replace("\n", "").replace("\t", "")
                     data.append({"text": text, "label": cat})
     
@@ -42,18 +42,19 @@ def load_data():
 df, categories = load_data()
 
 if not df.empty:
-    # ラベルをIDに変換
+    # 出力用ディレクトリを作成
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
     label2id = {k: v for v, k in enumerate(categories)}
     df["label_id"] = df["label"].map(label2id)
 
-    # 訓練データとテストデータに分割 (8:2)
     train_df, test_df = train_test_split(df, test_size=0.2, random_state=42, stratify=df["label_id"])
 
-    # CSVは実行ディレクトリ(src/npl-assignments/)に保存されます
-    train_df.to_csv("train.csv", index=False)
-    test_df.to_csv("test.csv", index=False)
-    pd.DataFrame(list(label2id.items()), columns=["label", "id"]).to_csv("labels.csv", index=False)
+    # dataフォルダ内に保存
+    train_df.to_csv(OUTPUT_DIR / "train.csv", index=False)
+    test_df.to_csv(OUTPUT_DIR / "test.csv", index=False)
+    pd.DataFrame(list(label2id.items()), columns=["label", "id"]).to_csv(OUTPUT_DIR / "labels.csv", index=False)
 
-    print("データ準備完了！ train.csv, test.csv が作成されました。")
+    print(f"完了: {OUTPUT_DIR} にCSVファイルを作成しました。")
 else:
     print("データの読み込みに失敗しました。")

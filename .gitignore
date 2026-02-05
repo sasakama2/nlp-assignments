@@ -7,6 +7,10 @@ wheels/
 *.egg-info
 text/*
 
+src/nlp_assignments/data/*
+src/nlp_assignments/results/*
+src/nlp_assignments/my_bert_model/*
+src/nlp_assignments/plots/*
 
 # Virtual environments
 .venv

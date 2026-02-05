@@ -2,53 +2,64 @@ import pandas as pd
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer
 from datasets import Dataset
+from pathlib import Path
+from sklearn.metrics import accuracy_score
+
+# --- パス設定 ---
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+OUTPUT_DIR = BASE_DIR / "results"
+MODEL_SAVE_DIR = BASE_DIR / "my_bert_model"
+# ----------------
 
 # 1. データ読み込み
-train_df = pd.read_csv("train.csv")
-test_df = pd.read_csv("test.csv")
-labels_df = pd.read_csv("labels.csv")
+print(f"データを読み込んでいます: {DATA_DIR}")
+train_df = pd.read_csv(DATA_DIR / "train.csv")
+test_df = pd.read_csv(DATA_DIR / "test.csv")
+labels_df = pd.read_csv(DATA_DIR / "labels.csv")
 num_labels = len(labels_df)
 
-# dataset形式に変換
+# 【修正ポイント】
+# モデルは 'labels' という名前の数値列を期待します。
+# 既存の 'label_id' を 'labels' に変更し、文字列の 'label' 列は削除します。
+train_df = train_df.rename(columns={"label_id": "labels"}).drop(columns=["label"])
+test_df = test_df.rename(columns={"label_id": "labels"}).drop(columns=["label"])
+
 train_dataset = Dataset.from_pandas(train_df)
 test_dataset = Dataset.from_pandas(test_df)
 
-# 2. トークナイザとモデルの準備 (東北大BERT v3)
+# 2. モデル準備
 model_name = "cl-tohoku/bert-base-japanese-v3"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 def tokenize_function(examples):
-    # max_length=512で切り詰め、paddingする
     return tokenizer(examples["text"], padding="max_length", truncation=True, max_length=512)
 
-# トークン化実行
 tokenized_train = train_dataset.map(tokenize_function, batched=True)
 tokenized_test = test_dataset.map(tokenize_function, batched=True)
 
-# モデル初期化 (GPUへはTrainerが勝手に送ってくれます)
 model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
 
 # 3. 学習設定
 training_args = TrainingArguments(
-    output_dir="./results",          # 出力フォルダ
-    eval_strategy="epoch",     # エポックごとに評価
-    learning_rate=2e-5,              # 学習率
-    per_device_train_batch_size=16,  # 4060 (8GB) なら16でいけるはず。ダメなら8に。
+    output_dir=str(OUTPUT_DIR),
+    eval_strategy="epoch",
+    learning_rate=2e-5,
+    per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
-    num_train_epochs=3,              # 3エポックで十分収束します
+    num_train_epochs=3,
     weight_decay=0.01,
-    save_total_limit=1,              # 容量節約のため最新モデルだけ残す
-    fp16=True,                       # GPUの高速化・省メモリ機能 (RTXシリーズなら必須)
+    save_total_limit=1,
+    fp16=False,      
+    bf16=True,
 )
 
-# 精度計算用関数
-from sklearn.metrics import accuracy_score
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
     predictions = logits.argmax(axis=-1)
     return {"accuracy": accuracy_score(labels, predictions)}
 
-# 4. Trainerの作成と実行
+# 4. 実行
 trainer = Trainer(
     model=model,
     args=training_args,
@@ -60,7 +71,6 @@ trainer = Trainer(
 print("学習開始...")
 trainer.train()
 
-# モデルの保存
-model.save_pretrained("./my_bert_model")
-tokenizer.save_pretrained("./my_bert_model")
-print("学習完了＆保存しました")
+model.save_pretrained(MODEL_SAVE_DIR)
+tokenizer.save_pretrained(MODEL_SAVE_DIR)
+print(f"学習完了: {MODEL_SAVE_DIR} にモデルを保存しました")
