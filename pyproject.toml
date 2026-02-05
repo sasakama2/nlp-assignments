@@ -3,9 +3,6 @@ name = "nlp-assignments"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "sasakama2", email = "karage350@gmail.com" }
-]
 requires-python = ">=3.10"
 dependencies = [
     "accelerate>=1.12.0",
