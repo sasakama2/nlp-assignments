@@ -69,3 +69,6 @@ unfixable = [
     "F401", 
     "F841", 
 ] 
+[tool.ruff.format]
+quote-style = "double" # 文字列を"..."で統一
+docstring-code-format = true # docstring内コードも整形
