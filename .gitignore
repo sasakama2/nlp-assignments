@@ -6,7 +6,8 @@ dist/
 wheels/
 *.egg-info
 text/*
-
+.vscode/
+.vscode/*
 src/nlp_assignments/data/*
 src/nlp_assignments/results/*
 src/nlp_assignments/my_bert_model/*
